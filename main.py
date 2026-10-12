@@ -43,7 +43,19 @@ def main():
         print("변경 사항이 없습니다.")
         return 0
 
-    if not changes["status"].strip() and not changes["staged_diff"].strip():
+    untracked_files = [
+        line[3:]
+        for line in changes["status"].splitlines()
+        if line.startswith("?? ")
+    ]
+
+    if untracked_files:
+        print("아래 새 파일의 내용은 diff에 포함되지 않습니다.")
+        for file in untracked_files:
+            print(f"- {file}")
+        print("포함하려면 git add <파일 경로>로 스테이징해주세요.")
+
+    if not changes["diff"].strip() and not changes["staged_diff"].strip():
         print("변경 파일은 있지만 수집할 diff가 없습니다.")
         print("새 파일은 git add <파일 경로>로 스테이징한 후 다시 실행해주세요.")
         return 1
