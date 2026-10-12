@@ -1,7 +1,9 @@
 import argparse
 from argparse import ArgumentParser
 from subprocess import CalledProcessError
-from urllib import request
+from pathlib import Path
+from dotenv import load_dotenv
+
 from git_utils import collect_changes, check_git_root, limit_diff
 from ai_client import MODEL_PROVIDERS, get_api_key, request_ai
 
@@ -221,6 +223,8 @@ def validate_pr_result(result: str) -> tuple[str, list[str]]:
 def main():
     parser = build_parser()
     args = parser.parse_args()
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
 
     try:
         check_git_root()
