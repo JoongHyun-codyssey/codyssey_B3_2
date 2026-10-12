@@ -1,7 +1,10 @@
 import argparse
 from argparse import ArgumentParser
 from subprocess import CalledProcessError
+from urllib import request
+
 from git_utils import collect_changes, check_git_root, limit_diff
+from ai_client import MODEL_PROVIDERS, get_api_key, request_ai
 
 
 def build_parser() -> ArgumentParser:
@@ -10,14 +13,24 @@ def build_parser() -> ArgumentParser:
 
     commit = subparser.add_parser("commit", help="커밋 메세지 작성")
 
-    model = commit.add_argument("--model", type=str, help="Please, write your AI")
+    model = commit.add_argument(
+                                "--model",
+                                choices=list(MODEL_PROVIDERS),
+                                default="gpt-5-mini",
+                                help="사용할 AI 모델",
+                                )
     temperature = commit.add_argument("--temperature", type=float, default=0.2, help="Please, write your AI temperature")
     max_token = commit.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
     safe_mode = commit.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
 
     pr = subparser.add_parser("pr", help="pr 작성")
 
-    model = pr.add_argument("--model", type=str, help="Please, write your AI")
+    model = pr.add_argument(
+                            "--model",
+                            choices=list(MODEL_PROVIDERS),
+                            default="gpt-5-mini",
+                            help="사용할 AI 모델",
+                            )
     temperature = pr.add_argument("--temperature", type=str, help="Please, write your AI temperature")
     max_token = pr.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
     safe_mode = pr.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
@@ -61,8 +74,8 @@ def main():
         return 1
 
     diff_text = "\n".join([
-    changes["staged_diff"],
-    changes["diff"],
+        changes["staged_diff"],
+        changes["diff"],
     ])
 
     if args.safe_mode:
@@ -80,6 +93,28 @@ def main():
 
     print("\n========== 전송할 diff ==========")
     print(diff_text)
+
+    try:
+        api_key = get_api_key(args.model)
+    except ValueError as e:
+        print(e)
+        return 1
+
+    print(f"API Key 설정 확인 완료: {args.model}")
+
+    try:
+        result = request_ai(
+            model=args.model,
+            api_key=api_key,
+            prompt="한국어로 짧은 인사말을 작성해줘.",
+        )
+    except RuntimeError as e:
+        print(e)
+        return 1
+
+    print("\n========== AI 응답 ==========")
+    print(result)
+    print("AI API 호출 횟수: 1회")
 
     return 0
 
