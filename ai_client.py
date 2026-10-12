@@ -2,6 +2,8 @@ import os
 from typing import Any
 import requests
 
+# 커밋 메시지 형식 검증 테스트
+
 MODEL_PROVIDERS = {
     "claude-haiku-4": "anthropic",
     "claude-sonnet-4": "anthropic",
