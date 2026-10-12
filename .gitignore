@@ -1,0 +1,25 @@
+# Python 캐시
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 가상환경
+.venv/
+venv/
+env/
+
+# API Key 등 환경변수 파일
+.env
+.env.*
+!.env.example
+
+# 로그
+*.log
+
+# IDE 개인 설정
+.idea/
+.vscode/
+
+# 운영체제 파일
+.DS_Store
+Thumbs.db
