@@ -28,7 +28,10 @@ def get_api_key(model:str) -> str:
 
     return api_key
 
-def request_ai(model: str, api_key: str, prompt: str) -> str:
+def request_ai(model: str, api_key: str, prompt: str, max_tokens: int = 2048) -> str:
+    if max_tokens <= 0:
+        raise RuntimeError("--max-tokens는 양의 정수여야 합니다.")
+
     provider = MODEL_PROVIDERS[model]
 
     payload:dict[str, Any] = {
@@ -41,13 +44,14 @@ def request_ai(model: str, api_key: str, prompt: str) -> str:
         headers = {
             "Authorization": f"Bearer {api_key}",
         }
+        payload["max_completion_tokens"] = max_tokens
     else:
         url = "https://copa.codyssey.kr/v1/messages"
         headers = {
             "x-api-key": api_key,
             "anthropic-version": "2023-06-01",
         }
-        payload["max_tokens"] = 1024
+        payload["max_tokens"] = max_tokens
 
     try:
         response = requests.post(
@@ -66,7 +70,14 @@ def request_ai(model: str, api_key: str, prompt: str) -> str:
         data = response.json()
 
         if provider == "openai":
-            text = data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            text = choice["message"]["content"]
+
+            if choice.get("finish_reason") == "length":
+                raise RuntimeError(
+                    "토큰 한도에 도달해 생성이 중단되었습니다. "
+                    "--max-tokens 값을 늘려주세요."
+                )
         else:
             text = "\n".join(
                 block["text"]

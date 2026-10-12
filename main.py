@@ -20,7 +20,7 @@ def build_parser() -> ArgumentParser:
                                 help="사용할 AI 모델",
                                 )
     temperature = commit.add_argument("--temperature", type=float, default=0.2, help="Please, write your AI temperature")
-    max_token = commit.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
+    max_token = commit.add_argument("--max-tokens", type=int, default=2048, help="Please, write your AI tokens")
     safe_mode = commit.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
 
     pr = subparser.add_parser("pr", help="pr 작성")
@@ -32,7 +32,7 @@ def build_parser() -> ArgumentParser:
                             help="사용할 AI 모델",
                             )
     temperature = pr.add_argument("--temperature", type=str, help="Please, write your AI temperature")
-    max_token = pr.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
+    max_token = pr.add_argument("--max-tokens", type=int, default=2048, help="Please, write your AI tokens")
     safe_mode = pr.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
 
     return parser
@@ -158,6 +158,7 @@ def main():
             model=args.model,
             api_key=api_key,
             prompt=prompt,
+            max_tokens=args.max_tokens,
         )
     except RuntimeError as e:
         print(e)
