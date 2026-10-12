@@ -1,7 +1,7 @@
 import argparse
 from argparse import ArgumentParser
 from subprocess import CalledProcessError
-from git_utils import collect_changes, check_git_root
+from git_utils import collect_changes, check_git_root, limit_diff
 
 
 def build_parser() -> ArgumentParser:
@@ -13,14 +13,14 @@ def build_parser() -> ArgumentParser:
     model = commit.add_argument("--model", type=str, help="Please, write your AI")
     temperature = commit.add_argument("--temperature", type=float, default=0.2, help="Please, write your AI temperature")
     max_token = commit.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
-    safe_mode = commit.add_argument("--safe-mode", type=str, help="Please, write safe mode option")
+    safe_mode = commit.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
 
     pr = subparser.add_parser("pr", help="pr 작성")
 
     model = pr.add_argument("--model", type=str, help="Please, write your AI")
     temperature = pr.add_argument("--temperature", type=str, help="Please, write your AI temperature")
     max_token = pr.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
-    safe_mode = pr.add_argument("--safe-mode", type=str, help="Please, write safe mode option")
+    safe_mode = pr.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
 
     return parser
 
@@ -60,14 +60,26 @@ def main():
         print("새 파일은 git add <파일 경로>로 스테이징한 후 다시 실행해주세요.")
         return 1
 
-    print("변경 파일:")
-    print(changes["status"])
+    diff_text = "\n".join([
+    changes["staged_diff"],
+    changes["diff"],
+    ])
 
-    print("스테이징 전 변경:")
-    print(changes["diff"])
+    if args.safe_mode:
+        before = len(diff_text.splitlines())
+        diff_text, truncated = limit_diff(diff_text)
+        after = len(diff_text.splitlines())
 
-    print("스테이징된 변경:")
-    print(changes["staged_diff"])
+        print(f"안전 모드: {before}줄 → {after}줄")
+
+        if truncated:
+            print("안전 모드: diff가 200줄을 초과해 일부만 포함합니다.")
+
+    print("\n========== 변경 파일 ==========")
+    print(changes["status"].rstrip())
+
+    print("\n========== 전송할 diff ==========")
+    print(diff_text)
 
     return 0
 

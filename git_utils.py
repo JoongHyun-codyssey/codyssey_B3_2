@@ -45,3 +45,9 @@ def check_git_root() -> None:
         raise ValueError(
             f"프로젝트 루트에서 실행해주세요: {git_root}"
         )
+
+def limit_diff(diff: str, max_lines: int=200) -> tuple[str, bool]:
+    lines = diff.splitlines()
+    truncated = len(lines) > max_lines
+
+    return "\n".join(lines[:max_lines]), truncated
