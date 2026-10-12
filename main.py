@@ -1,6 +1,7 @@
 import argparse
 from argparse import ArgumentParser
-from git_utils import collect_changes
+from subprocess import CalledProcessError
+from git_utils import collect_changes, check_git_root
 
 
 def build_parser() -> ArgumentParser:
@@ -28,11 +29,24 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
 
-    changes = collect_changes()
+    try:
+        check_git_root()
+        changes = collect_changes()
+    except CalledProcessError as e:
+        print(f"Git 명령 실행 실패: {e.stderr.strip()}")
+        return 1
+    except ValueError as e:
+        print(e)
+        return 1
 
     if not changes["status"].strip():
         print("변경 사항이 없습니다.")
         return 0
+
+    if not changes["status"].strip() and not changes["staged_diff"].strip():
+        print("변경 파일은 있지만 수집할 diff가 없습니다.")
+        print("새 파일은 git add <파일 경로>로 스테이징한 후 다시 실행해주세요.")
+        return 1
 
     print("변경 파일:")
     print(changes["status"])
