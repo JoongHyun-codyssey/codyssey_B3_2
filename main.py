@@ -1,5 +1,32 @@
+import argparse
+from argparse import ArgumentParser
+
+
+def build_parser() -> ArgumentParser:
+    parser = argparse.ArgumentParser(description="명령어 사용법입니다.")
+    subparser = parser.add_subparsers(dest="command", required=True)
+
+    commit = subparser.add_parser("commit", help="커밋 메세지 작성")
+
+    model = commit.add_argument("--model", type=str, help="Please, write your AI")
+    temperature = commit.add_argument("--temperature", type=str, help="Please, write your AI temperature")
+    max_token = commit.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
+    safe_mode = commit.add_argument("--safe-mode", type=str, help="Please, write safe mode option")
+
+    pr = subparser.add_parser("pr", help="pr 작성")
+
+    model = pr.add_argument("--model", type=str, help="Please, write your AI")
+    temperature = pr.add_argument("--temperature", type=str, help="Please, write your AI temperature")
+    max_token = pr.add_argument("--max-tokens", type=int, help="Please, write your AI tokens")
+    safe_mode = pr.add_argument("--safe-mode", type=str, help="Please, write safe mode option")
+
+    return parser
+
+
 def main():
-    print("hello world")
+    parser = build_parser()
+    args = parser.parse_args()
+
     return 0
 
 if __name__ == "__main__":
