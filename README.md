@@ -21,15 +21,16 @@ Git 변경 사항을 AI API에 전달해 변경 요약, 커밋 메시지, Pull R
 
 - Python 3.10 이상
 - Git
-- `requests` 라이브러리
+- `requests`, `python-dotenv` 라이브러리
 - 선택한 모델에 해당하는 API Key와 API 네트워크 연결
 
 ```text
 codyssey_B3_2/
-├── main.py           # CLI, 프롬프트, 결과 검증·출력
+├── main.py           # .env 로딩, CLI, 프롬프트, 결과 검증·출력
 ├── git_utils.py      # Git 루트 확인, 변경 수집, diff 200줄 제한
 ├── ai_client.py      # 모델별 API Key, REST 요청·응답·오류 처리
-├── requirements.txt  # requests 의존성
+├── requirements.txt  # requests, python-dotenv 의존성
+├── .env              # 로컬 API Key 설정 파일(Git 추적 제외)
 ├── .gitignore        # 환경변수 파일, 가상환경 등 추적 제외
 └── README.md
 ```
@@ -57,7 +58,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-의존성을 설치합니다.
+의존성인 `requests`와 `python-dotenv`를 설치합니다. `python-dotenv`는 코드에서 `dotenv`라는 이름으로 불러옵니다.
 
 ```bash
 python -m pip install -r requirements.txt
@@ -65,14 +66,29 @@ python -m pip install -r requirements.txt
 
 ## 4. API Key 설정
 
-API Key는 환경변수에서만 읽으며 코드에 하드코딩하지 않습니다. 선택한 모델에 따라 다음 환경변수를 사용합니다.
+API Key는 코드에 하드코딩하지 않고 환경변수로 관리합니다. 프로그램은 `python-dotenv`로 **`main.py`와 같은 폴더의 `.env` 파일**을 읽어 환경변수에 로드한 뒤, 선택한 모델에 해당하는 키를 조회합니다.
 
 | 모델 계열 | 환경변수 |
 | --- | --- |
 | Claude | `ANTHROPIC_API_KEY` |
 | GPT | `OPENAI_API_KEY` |
 
-아래 실행 예시는 `claude-haiku-4`를 사용합니다. 해당 모델을 사용할 수 있는 키를 현재 터미널 세션에 설정합니다.
+### .env 파일로 설정
+
+프로젝트 루트의 `.env` 파일에 사용할 모델에 해당하는 항목을 작성합니다. 두 계열을 모두 사용한다면 두 항목을 함께 설정할 수 있습니다. 아래 값은 자리표시자이며, 실제 발급받은 키로 바꿉니다.
+
+```dotenv
+ANTHROPIC_API_KEY="발급받은_Claude용_API_KEY"
+OPENAI_API_KEY="발급받은_GPT용_API_KEY"
+```
+
+아래 실행 예시는 `claude-haiku-4`를 사용하므로 `ANTHROPIC_API_KEY`가 필요합니다. GPT 계열 실행에는 아래의 **모델 설정 제한**이 있습니다.
+
+`.env`를 저장한 뒤 CLI를 실행하면 자동으로 읽습니다. 파일은 로컬에서 관리하고 실제 키가 담긴 `.env`를 GitHub에 올리지 않습니다.
+
+### 셸 환경변수로 설정
+
+`.env` 대신 현재 터미널 세션에 직접 설정할 수도 있습니다. **셸에 이미 설정된 환경변수가 `.env`의 값보다 우선**하며, `.env`는 기존 값을 덮어쓰지 않습니다.
 
 macOS / Linux:
 
@@ -86,7 +102,7 @@ Windows PowerShell:
 $env:ANTHROPIC_API_KEY = "발급받은_API_KEY"
 ```
 
-GPT 계열을 선택할 때 사용하는 환경변수는 다음과 같습니다. 현재 GPT 모델 실행에는 아래의 **모델 설정 제한**이 있습니다.
+GPT 계열은 같은 방식으로 `OPENAI_API_KEY`를 설정합니다.
 
 ```bash
 export OPENAI_API_KEY="발급받은_API_KEY"
@@ -96,7 +112,7 @@ export OPENAI_API_KEY="발급받은_API_KEY"
 $env:OPENAI_API_KEY = "발급받은_API_KEY"
 ```
 
-`AI_API_KEY`, `AI_MODEL` 환경변수는 사용하지 않습니다. `.env` 파일을 자동으로 읽는 기능도 없으므로 실행할 셸에 환경변수를 설정해야 합니다.
+`AI_API_KEY`, `AI_MODEL` 환경변수는 사용하지 않습니다. 모델은 `--model` 옵션으로 선택합니다. `.env`가 없어도 셸 환경변수에 키가 있으면 사용할 수 있으며, 어느 쪽에도 키가 없으면 설정 안내 후 종료합니다.
 
 현재 API 요청은 `ai_client.py`에 설정된 COPA 엔드포인트로 전송됩니다. 키와 모델은 해당 서비스에서 사용할 수 있어야 합니다.
 
@@ -163,14 +179,15 @@ temperature는 낮을수록 대체로 일관된 표현을 유도하고, 높을�
 
 ## 6. 자동화 처리 흐름
 
-1. 현재 위치가 Git 프로젝트 루트인지 확인합니다.
-2. `git status --porcelain`, `git diff`, `git diff --cached` 결과를 수집합니다.
-3. 변경 사항이 없으면 `변경 사항이 없습니다.`를 출력하고 API 호출 없이 정상 종료합니다.
-4. 스테이징된 diff를 먼저, 스테이징되지 않은 diff를 뒤에 붙입니다.
-5. `--safe-mode`가 있으면 결합된 diff의 처음 200줄만 남깁니다.
-6. 변경 파일 목록과 AI에 전달할 diff 줄 수를 터미널에 출력합니다.
-7. 환경변수에서 API Key를 읽고, diff와 출력 규칙으로 구성한 프롬프트를 REST API로 1회 전송합니다.
-8. 응답 텍스트를 추출한 뒤 길이·형식을 검증하고 최종 초안을 출력합니다.
+1. CLI 인자를 해석한 뒤 `main.py`와 같은 폴더의 `.env`를 환경변수로 로드합니다.
+2. 현재 위치가 Git 프로젝트 루트인지 확인합니다.
+3. `git status --porcelain`, `git diff`, `git diff --cached` 결과를 수집합니다.
+4. 변경 사항이 없으면 `변경 사항이 없습니다.`를 출력하고 API 호출 없이 정상 종료합니다.
+5. 스테이징된 diff를 먼저, 스테이징되지 않은 diff를 뒤에 붙입니다.
+6. `--safe-mode`가 있으면 결합된 diff의 처음 200줄만 남깁니다.
+7. 변경 파일 목록과 AI에 전달할 diff 줄 수를 터미널에 출력합니다.
+8. 환경변수에서 API Key를 읽고, diff와 출력 규칙으로 구성한 프롬프트를 REST API로 1회 전송합니다.
+9. 응답 텍스트를 추출한 뒤 길이·형식을 검증하고 최종 초안을 출력합니다.
 
 추적되지 않은 새 파일은 `git status`에는 표시되지만 diff에 내용이 포함되지 않습니다. 해당 내용도 요약하려면 먼저 스테이징합니다.
 
@@ -279,10 +296,12 @@ AI API 호출 횟수: 1회
 | 상황 | 확인 방법 및 처리 |
 | --- | --- |
 | `No module named 'requests'` | 가상환경 활성화 후 `python -m pip install -r requirements.txt` 실행 |
+| `No module named 'dotenv'` | CLI를 실행하는 Python 환경에 `python -m pip install -r requirements.txt`로 `python-dotenv` 설치 |
 | Git 저장소 밖 또는 루트가 아닌 위치 | Git 저장소의 루트 디렉토리로 이동 후 실행 |
 | 변경 사항 없음 | 안내 후 정상 종료. API 호출 없음 |
 | 새 파일만 있고 diff 없음 | 필요한 파일을 `git add <파일 경로>`로 스테이징 후 실행 |
-| API Key 누락 | 선택한 모델에 맞는 환경변수 설정 |
+| API Key 누락 | `main.py`와 같은 폴더의 `.env` 또는 셸에 선택한 모델의 키 설정 |
+| `.env`를 수정해도 이전 키 사용 | 셸에 같은 환경변수가 이미 설정되어 있는지 확인. 셸 값이 우선하므로 갱신하거나 해제한 뒤 실행 |
 | temperature 미지원 오류 | 현재 구현에서는 `--model claude-haiku-4` 또는 `--model claude-sonnet-4` 사용 |
 | 잘못된 옵션 값 | `--temperature`는 `0~1`, `--max-tokens`는 양의 정수로 설정 |
 | 인증 실패·요청 제한·서버 오류 | 출력된 HTTP 오류를 확인하고 키, 권한, API 서비스 상태 확인 |
