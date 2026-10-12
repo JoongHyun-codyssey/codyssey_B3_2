@@ -31,7 +31,7 @@ def build_parser() -> ArgumentParser:
                             default="gpt-5-mini",
                             help="사용할 AI 모델",
                             )
-    temperature = pr.add_argument("--temperature", type=str, help="Please, write your AI temperature")
+    temperature = pr.add_argument("--temperature", type=float, default=0.2, help="Please, write your AI temperature")
     max_token = pr.add_argument("--max-tokens", type=int, default=2048, help="Please, write your AI tokens")
     safe_mode = pr.add_argument("--safe-mode", action="store_true", help="Please, write safe mode option")
 
@@ -159,6 +159,7 @@ def main():
             api_key=api_key,
             prompt=prompt,
             max_tokens=args.max_tokens,
+            temperature=args.temperature,
         )
     except RuntimeError as e:
         print(e)

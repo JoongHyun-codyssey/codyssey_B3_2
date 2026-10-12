@@ -18,7 +18,7 @@ def get_api_key(model:str) -> str:
 
     variable = {
         "openai": "OPENAI_API_KEY",
-        "anthropic": "ANTROPIC_API_KEY"
+        "anthropic": "ANTHROPIC_API_KEY"
     }[provider]
 
     api_key = os.getenv(variable)
@@ -28,7 +28,7 @@ def get_api_key(model:str) -> str:
 
     return api_key
 
-def request_ai(model: str, api_key: str, prompt: str, max_tokens: int = 2048) -> str:
+def request_ai(model: str, api_key: str, prompt: str, max_tokens: int = 2048, temperature: float| None = None) -> str:
     if max_tokens <= 0:
         raise RuntimeError("--max-tokens는 양의 정수여야 합니다.")
 
@@ -53,6 +53,22 @@ def request_ai(model: str, api_key: str, prompt: str, max_tokens: int = 2048) ->
         }
         payload["max_tokens"] = max_tokens
 
+    if temperature is not None:
+        if not 0.0 <= temperature <= 1.0:
+            raise ValueError("--temperature는 0~1 사이여야 합니다.")
+
+        supported_models = {
+            "claude-haiku-4",
+            "claude-sonnet-4",
+        }
+
+        if model not in supported_models:
+            raise RuntimeError(
+                f"현재 구현에서는 {model}의 temperature 조절을 "
+                "지원하지 않습니다. --temperature를 생략해주세요."
+            )
+
+        payload["temperature"] = temperature
     try:
         response = requests.post(
             url,
