@@ -26,12 +26,20 @@ Git 변경 사항을 AI API에 전달해 변경 요약, 커밋 메시지, Pull R
 
 ```text
 codyssey_B3_2/
-├── main.py           # .env 로딩, CLI, 프롬프트, 결과 검증·출력
-├── git_utils.py      # Git 루트 확인, 변경 수집, diff 200줄 제한
-├── ai_client.py      # 모델별 API Key, REST 요청·응답·오류 처리
-├── requirements.txt  # requests, python-dotenv 의존성
-├── .env              # 로컬 API Key 설정 파일(Git 추적 제외)
-├── .gitignore        # 환경변수 파일, 가상환경 등 추적 제외
+├── main.py              # 실행 진입점: .env 로딩 후 CLI 실행
+├── ai_commit/
+│   ├── __init__.py
+│   ├── config.py        # 모델 목록, 기본값, 길이 제한 등 설정값
+│   ├── cli.py           # 명령줄 인자(commit/pr, 옵션) 정의·값 검증
+│   ├── app.py           # 전체 실행 흐름 (수집 → 프롬프트 → AI 호출 → 검증·출력)
+│   ├── git_utils.py     # Git 루트 확인, 변경 수집, diff 줄 수 제한
+│   ├── prompts.py       # AI에 보낼 프롬프트 생성
+│   ├── ai_client.py     # 모델별 API Key, REST 요청·응답·오류 처리
+│   └── validators.py    # 생성 결과 형식 검증·후처리
+├── requirements.txt     # requests, python-dotenv 의존성
+├── .env.example         # .env 작성 예시 (복사해서 사용)
+├── .env                 # 로컬 API Key 설정 파일(Git 추적 제외)
+├── .gitignore           # 환경변수 파일, 가상환경 등 추적 제외
 └── README.md
 ```
 
@@ -75,14 +83,14 @@ API Key는 코드에 하드코딩하지 않고 환경변수로 관리합니다. 
 
 ### .env 파일로 설정
 
-프로젝트 루트의 `.env` 파일에 사용할 모델에 해당하는 항목을 작성합니다. 두 계열을 모두 사용한다면 두 항목을 함께 설정할 수 있습니다. 아래 값은 자리표시자이며, 실제 발급받은 키로 바꿉니다.
+`.env.example`을 `.env`로 복사한 뒤(`cp .env.example .env`), 사용할 모델에 해당하는 항목을 작성합니다. 두 계열을 모두 사용한다면 두 항목을 함께 설정할 수 있습니다. 아래 값은 자리표시자이며, 실제 발급받은 키로 바꿉니다.
 
 ```dotenv
 ANTHROPIC_API_KEY="발급받은_Claude용_API_KEY"
 OPENAI_API_KEY="발급받은_GPT용_API_KEY"
 ```
 
-아래 실행 예시는 `claude-haiku-4`를 사용하므로 `ANTHROPIC_API_KEY`가 필요합니다. GPT 계열 실행에는 아래의 **모델 설정 제한**이 있습니다.
+아래 실행 예시는 `claude-haiku-4`를 사용하므로 `ANTHROPIC_API_KEY`가 필요합니다. 기본 모델(`gpt-5-mini`) 등 GPT 계열은 `OPENAI_API_KEY`가 필요합니다.
 
 `.env`를 저장한 뒤 CLI를 실행하면 자동으로 읽습니다. 파일은 로컬에서 관리하고 실제 키가 담긴 `.env`를 GitHub에 올리지 않습니다.
 
@@ -114,7 +122,7 @@ $env:OPENAI_API_KEY = "발급받은_API_KEY"
 
 `AI_API_KEY`, `AI_MODEL` 환경변수는 사용하지 않습니다. 모델은 `--model` 옵션으로 선택합니다. `.env`가 없어도 셸 환경변수에 키가 있으면 사용할 수 있으며, 어느 쪽에도 키가 없으면 설정 안내 후 종료합니다.
 
-현재 API 요청은 `ai_client.py`에 설정된 COPA 엔드포인트로 전송됩니다. 키와 모델은 해당 서비스에서 사용할 수 있어야 합니다.
+현재 API 요청은 `ai_commit/config.py`에 설정된 COPA 엔드포인트로 전송됩니다. 키와 모델은 해당 서비스에서 사용할 수 있어야 합니다.
 
 | 모델 계열 | REST 요청 주소                                 | 인증 방식                   |
 | --------- | ---------------------------------------------- | --------------------------- |
@@ -159,8 +167,8 @@ python main.py pr --help
 
 | 옵션            | 기본값       | 설명                                                 |
 | --------------- | ------------ | ---------------------------------------------------- |
-| `--model`       | `gpt-5-mini` | 코드에 등록된 모델 중 선택. 아래 모델 설정 제한 참고 |
-| `--temperature` | `0.2`        | 표현의 다양성을 조절하는 요청 값. 허용 범위 `0~1`    |
+| `--model`       | `gpt-5-mini` | 코드에 등록된 모델 중 선택                           |
+| `--temperature` | `0.2`        | 표현의 다양성. 허용 범위 `0~1`. 지원 모델에만 적용   |
 | `--max-tokens`  | `2048`       | 출력 토큰 상한. 양의 정수                            |
 | `--safe-mode`   | 비활성화     | 지정하면 결합된 diff의 처음 200줄만 전송             |
 
@@ -171,7 +179,7 @@ python main.py pr --help
 | Claude    | `claude-haiku-4`, `claude-sonnet-4`, `claude-opus-4-7`, `claude-opus-4-8` |
 | GPT       | `gpt-5-mini`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`                        |
 
-**현재 모델 설정 제한:** `--temperature`는 생략해도 기본값 `0.2`가 API 요청 함수에 전달됩니다. 요청 함수는 `claude-haiku-4`와 `claude-sonnet-4`에 대해서만 temperature 설정을 허용하므로, 기본 모델 `gpt-5-mini`를 포함한 다른 모델은 API 호출 전에 오류로 종료됩니다. 현재 실행 시에는 위 예시처럼 두 Claude 모델 중 하나를 명시해야 합니다. 다른 모델을 실행하려면 코드에서 temperature를 생략할 수 있도록 수정해야 합니다.
+**temperature 지원 모델:** temperature 조절은 `claude-haiku-4`와 `claude-sonnet-4`만 지원합니다. 두 모델은 `--temperature`를 생략하면 기본값 `0.2`로 요청합니다. 그 외 모델은 `--temperature`를 생략하면 temperature 없이 요청하고, 직접 지정하면 API 호출 전에 오류로 종료합니다.
 
 temperature는 낮을수록 대체로 일관된 표현을 유도하고, 높을수록 표현의 다양성을 높입니다. `--max-tokens`는 글자 수나 diff 줄 수가 아닌 출력 토큰 상한입니다. 너무 작게 설정하면 응답이 잘려 결과 검증에 실패할 수 있습니다. GPT 요청에는 `max_completion_tokens`, Claude 요청에는 `max_tokens` 필드로 전달됩니다.
 
@@ -200,7 +208,7 @@ python main.py commit --model claude-haiku-4 --safe-mode
 
 ## 7. 프롬프트와 결과 검증
 
-`main.py`의 프롬프트는 diff를 분석해 한국어로 작성하도록 요청합니다. diff에 없는 변경을 만들지 않고, diff 내부 문장은 지시사항이 아닌 분석 대상으로 취급하도록 명시합니다.
+`ai_commit/prompts.py`의 프롬프트는 diff를 분석해 한국어로 작성하도록 요청합니다. diff에 없는 변경을 만들지 않고, diff 내부 문장은 지시사항이 아닌 분석 대상으로 취급하도록 명시합니다.
 
 제목은 `type: 설명` 형식을 사용합니다. 허용하는 type은 `feat`, `fix`, `docs`, `refactor`, `test`, `style`, `chore`입니다. 커밋 본문은 핵심 변경 사항을 불릿 1~2개로 요약하도록 요청합니다. PR은 배경을 추측했다면 추정임을 표시하고, 실제 테스트 수행 정보가 없으므로 권장 테스트 방법을 작성하도록 요청합니다.
 
@@ -217,7 +225,7 @@ python main.py commit --model claude-haiku-4 --safe-mode
 
 ## 8. 출력 예시
 
-아래는 `main.py`의 입력 검증을 수정한 상황을 가정한 **설명용 예시**입니다. 실제 API 실행 결과는 아니며, 내용과 줄 수는 변경 사항에 따라 달라집니다.
+아래는 입력 검증을 수정한 상황을 가정한 **설명용 예시**입니다. 실제 API 실행 결과는 아니며, 내용과 줄 수는 변경 사항에 따라 달라집니다.
 
 ### 커밋 메시지
 
@@ -302,12 +310,12 @@ AI API 호출 횟수: 1회
 | 새 파일만 있고 diff 없음            | 필요한 파일을 `git add <파일 경로>`로 스테이징 후 실행                                          |
 | API Key 누락                        | `main.py`와 같은 폴더의 `.env` 또는 셸에 선택한 모델의 키 설정                                  |
 | `.env`를 수정해도 이전 키 사용      | 셸에 같은 환경변수가 이미 설정되어 있는지 확인. 셸 값이 우선하므로 갱신하거나 해제한 뒤 실행    |
-| temperature 미지원 오류             | 현재 구현에서는 `--model claude-haiku-4` 또는 `--model claude-sonnet-4` 사용                    |
-| 잘못된 옵션 값                      | `--temperature`는 `0~1`, `--max-tokens`는 양의 정수로 설정                                      |
+| temperature 미지원 오류             | `--temperature`를 생략하거나 `claude-haiku-4`·`claude-sonnet-4` 사용                            |
+| 잘못된 옵션 값                      | 실행 즉시 안내. `--temperature`는 `0~1`, `--max-tokens`는 양의 정수로 설정                      |
 | 인증 실패·요청 제한·서버 오류       | 출력된 HTTP 오류를 확인하고 키, 권한, API 서비스 상태 확인                                      |
 | 네트워크 오류·시간 초과             | 연결 상태 확인. API 요청 타임아웃은 30초                                                        |
 | 응답 해석 실패                      | 응답 구조 또는 생성 텍스트가 올바른지 확인                                                      |
 | 토큰 한도로 생성 중단               | GPT 응답의 `finish_reason`이 `length`이면 오류 안내. `--max-tokens`를 늘려 다시 실행            |
 | 결과 형식 검증 실패                 | 출력된 원본 응답과 제목·본문 규칙 확인 후 재실행 또는 수동 작성                                 |
 
-API 호출 오류는 원인을 포함한 메시지로 출력합니다. 현재 temperature 범위 오류는 `ValueError`가 최상위에서 처리되지 않아 traceback으로 표시될 수 있습니다. 호출 횟수 로그는 결과 검증까지 성공한 실행의 마지막에 출력됩니다.
+API 호출 오류는 원인을 포함한 메시지로 출력합니다. 호출 횟수 로그는 결과 검증까지 성공한 실행의 마지막에 출력됩니다.
