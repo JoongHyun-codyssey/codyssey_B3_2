@@ -13,11 +13,25 @@ from .git_utils import (
     limit_diff,
 )
 from .prompts import build_prompt
+from .sanitizer import MASK_LABELS, SanitizeReport, sanitize_diff
 from .validators import validate_result
 
 
 def _print_section(title: str) -> None:
     print(f"\n========== {title} ==========")
+
+
+def _print_sanitize_report(report: SanitizeReport) -> None:
+    for path in report.excluded_files:
+        print(f"민감정보 보호: {path} 파일은 diff 내용을 제외했습니다.")
+
+    if report.masked:
+        summary = ", ".join(
+            f"{MASK_LABELS[label]} {count}건" for label, count in report.masked.items()
+        )
+        print(f"민감정보 보호: {summary}을 마스킹했습니다.")
+    elif not report.excluded_files:
+        print("민감정보 보호: 감지된 민감정보가 없습니다.")
 
 
 def _prepare_diff(changes: dict[str, str], safe_mode: bool) -> str | None:
@@ -34,7 +48,9 @@ def _prepare_diff(changes: dict[str, str], safe_mode: bool) -> str | None:
         print("새 파일은 git add <파일 경로>로 스테이징한 후 다시 실행해주세요.")
         return None
 
-    diff_text = combine_diffs(changes)
+    # 민감정보 제거는 --safe-mode와 상관없이 항상 수행
+    diff_text, report = sanitize_diff(combine_diffs(changes))
+    _print_sanitize_report(report)
 
     if safe_mode:
         before = len(diff_text.splitlines())
